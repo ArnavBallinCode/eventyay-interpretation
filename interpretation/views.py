@@ -1,6 +1,5 @@
 from django.shortcuts import redirect
 from django.views.generic import TemplateView
-
 from eventyay.control.permissions import EventPermissionRequiredMixin
 
 PLUGIN_MODULE = "interpretation"
