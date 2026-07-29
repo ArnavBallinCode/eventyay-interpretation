@@ -91,6 +91,12 @@ class InterpretationDashboard(
         base_url = form.cleaned_data.get(SETTING_BASE_URL) or get_base_url(
             self.request.event
         )
+        if not base_url:
+            messages.error(
+                self.request,
+                _("A SUSI server URL is required to test the connection."),
+            )
+            return
         token = form.cleaned_data.get(SETTING_AUTH_TOKEN, "")
         client = SusiClient(base_url, token)
         try:

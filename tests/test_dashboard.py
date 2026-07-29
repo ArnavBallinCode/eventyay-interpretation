@@ -91,3 +91,23 @@ def test_save_and_test_warns_when_verify_rejects_token(
     messages = [str(message) for message in get_messages(response.wsgi_request)]
     assert any("connection issue" in message.lower() for message in messages)
     assert any("invalid" in message.lower() for message in messages)
+
+
+@override_settings(SITE_URL="https://testserver")
+def test_save_and_test_without_url_shows_error(
+    monkeypatch, organizer_client, event, dashboard_url
+):
+    calls = []
+
+    class FakeSusiClient:
+        def __init__(self, *args, **kwargs):
+            calls.append(True)
+
+    monkeypatch.setattr("interpretation.views.SusiClient", FakeSusiClient)
+
+    response = organizer_client.post(dashboard_url, {"test": "1"})
+
+    assert response.status_code == 302
+    assert calls == []
+    messages = [str(message) for message in get_messages(response.wsgi_request)]
+    assert any("url" in message.lower() for message in messages)
