@@ -43,7 +43,9 @@ class InterpretationSettingsForm(SettingsForm):
     def clean_interpretation_auth_token(self):
         token = (self.cleaned_data.get(SETTING_AUTH_TOKEN) or "").strip()
         if token == SECRET_REDACTED:
-            token = (self._stored_auth_token() or self.initial.get(SETTING_AUTH_TOKEN) or "").strip()
+            token = (
+                self._stored_auth_token() or self.initial.get(SETTING_AUTH_TOKEN) or ""
+            ).strip()
         return token
 
     def clean_interpretation_base_url(self):

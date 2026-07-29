@@ -10,8 +10,8 @@ from .forms import InterpretationSettingsForm
 from .settings import (
     SETTING_AUTH_TOKEN,
     SETTING_BASE_URL,
-    is_interpretation_enabled,
     get_base_url,
+    is_interpretation_enabled,
 )
 from .susi import SusiClient, SusiError
 

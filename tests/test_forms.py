@@ -10,9 +10,25 @@ from interpretation.settings import (
 PUBLIC_URL = "https://example.com"
 
 
+_SETTING_TYPES = {
+    SETTING_BASE_URL: str,
+    SETTING_AUTH_TOKEN: str,
+    SETTING_IS_ENABLED: bool,
+}
+
+
+class _FakeHierarkey:
+    defaults = {}
+
+    def get_declared_type(self, key):
+        return _SETTING_TYPES.get(key, str)
+
+
 class _FakeSettings:
     def __init__(self, data=None):
         self._data = dict(data or {})
+        self._parent = None
+        self._h = _FakeHierarkey()
 
     def get(self, key, default=None, as_type=str):
         if key not in self._data:
@@ -27,6 +43,9 @@ class _FakeSettings:
 
     def set(self, key, value):
         self._data[key] = value
+
+    def _cache(self):
+        return self._data.keys()
 
 
 class _FakeEvent:
