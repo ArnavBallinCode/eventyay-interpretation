@@ -28,6 +28,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       EVY_RUNNING_ENVIRONMENT: testing
       EVY_POSTGRES_HOST: localhost
@@ -35,6 +44,7 @@ jobs:
       EVY_POSTGRES_USER: postgres
       EVY_POSTGRES_PASSWORD: postgres
       EVY_POSTGRES_DB: pretix
+      EVY_REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
       - name: Check out eventyay host
