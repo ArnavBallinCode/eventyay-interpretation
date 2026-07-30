@@ -167,7 +167,8 @@ def test_failed_connect_does_not_enable_interpretation(monkeypatch):
     assert form.is_valid(), form.errors
     form.save_pending_connect()
     form.run_connect_action(request=type("R", (), {})())
-    assert form.obj.settings.get(SETTING_IS_ENABLED, default=False, as_type=bool) is False
+    enabled = form.obj.settings.get(SETTING_IS_ENABLED, default=False, as_type=bool)
+    assert enabled is False
     assert not form.obj.settings.get(SETTING_AUTH_TOKEN)
 
 
