@@ -140,3 +140,20 @@ def test_connect_with_credentials_is_valid(monkeypatch):
     form.run_connect_action(request=type("R", (), {})())
     assert form.obj.settings.get(SETTING_AUTH_TOKEN) == "jwt"
     assert form.obj.settings.get(SETTING_SUSI_EMAIL) == "bot@example.com"
+
+
+def test_save_does_not_persist_connect_credentials():
+    form = _form(
+        {
+            SETTING_BASE_URL: PUBLIC_URL,
+            "susi_connect_email": "bot@example.com",
+            "susi_connect_password": "secret",
+            SETTING_IS_ENABLED: False,
+        },
+    )
+    assert form.is_valid(), form.errors
+    form.save()
+    stored = form.obj.settings._data
+    assert "susi_connect_password" not in stored
+    assert "susi_connect_email" not in stored
+    assert stored.get(SETTING_BASE_URL) == PUBLIC_URL

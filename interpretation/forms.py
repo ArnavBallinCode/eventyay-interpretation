@@ -119,6 +119,20 @@ class InterpretationSettingsForm(SettingsForm):
                 )
         return cleaned
 
+    _TRANSIENT_FIELDS = frozenset({"susi_connect_password", "susi_connect_email"})
+
+    def save(self):
+        # ponytail: login fields are POST-only; never write them to event.settings.
+        removed = {
+            name: self.fields.pop(name)
+            for name in self._TRANSIENT_FIELDS
+            if name in self.fields
+        }
+        try:
+            return super().save()
+        finally:
+            self.fields.update(removed)
+
     def run_connect_action(self, request):
         base_url = self.cleaned_data.get(SETTING_BASE_URL) or get_base_url(self.obj)
         email = (self.cleaned_data.get("susi_connect_email") or "").strip()
