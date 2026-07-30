@@ -121,17 +121,20 @@ class InterpretationSettingsForm(SettingsForm):
 
     _TRANSIENT_FIELDS = frozenset({"susi_connect_password", "susi_connect_email"})
 
-    def save(self):
-        # ponytail: login fields are POST-only; never write them to event.settings.
-        removed = {
-            name: self.fields.pop(name)
-            for name in self._TRANSIENT_FIELDS
-            if name in self.fields
-        }
+    def _save_excluding_fields(self, excluded: frozenset):
+        removed = {name: self.fields.pop(name) for name in excluded if name in self.fields}
         try:
             return super().save()
         finally:
             self.fields.update(removed)
+
+    def save(self):
+        # ponytail: login fields are POST-only; never write them to event.settings.
+        return self._save_excluding_fields(self._TRANSIENT_FIELDS)
+
+    def save_pending_connect(self):
+        """Persist URL before login; defer is_enabled until connect succeeds."""
+        return self._save_excluding_fields(self._TRANSIENT_FIELDS | {SETTING_IS_ENABLED})
 
     def run_connect_action(self, request):
         base_url = self.cleaned_data.get(SETTING_BASE_URL) or get_base_url(self.obj)
@@ -151,6 +154,9 @@ class InterpretationSettingsForm(SettingsForm):
             token=result.token,
             email=result.email,
             name=result.name,
+        )
+        self.obj.settings.set(
+            SETTING_IS_ENABLED, bool(self.cleaned_data.get(SETTING_IS_ENABLED))
         )
         label = result.name or result.email
         if result.name and result.email:

@@ -137,9 +137,65 @@ def test_connect_with_credentials_is_valid(monkeypatch):
         }
     )
     assert form.is_valid(), form.errors
+    form.save_pending_connect()
     form.run_connect_action(request=type("R", (), {})())
     assert form.obj.settings.get(SETTING_AUTH_TOKEN) == "jwt"
     assert form.obj.settings.get(SETTING_SUSI_EMAIL) == "bot@example.com"
+
+
+def test_failed_connect_does_not_enable_interpretation(monkeypatch):
+    from django.contrib import messages
+
+    from interpretation.susi import SusiError
+
+    monkeypatch.setattr(messages, "success", lambda *a, **k: None)
+    monkeypatch.setattr(messages, "error", lambda *a, **k: None)
+
+    def fail_login(self, email, password):
+        raise SusiError("Invalid credentials")
+
+    monkeypatch.setattr("interpretation.forms.SusiClient.login", fail_login)
+    form = _form(
+        {
+            SETTING_BASE_URL: PUBLIC_URL,
+            "susi_connect_email": "bot@example.com",
+            "susi_connect_password": "wrong",
+            SETTING_IS_ENABLED: True,
+            CONNECT_POST_KEY: "1",
+        }
+    )
+    assert form.is_valid(), form.errors
+    form.save_pending_connect()
+    form.run_connect_action(request=type("R", (), {})())
+    assert form.obj.settings.get(SETTING_IS_ENABLED, default=False, as_type=bool) is False
+    assert not form.obj.settings.get(SETTING_AUTH_TOKEN)
+
+
+def test_successful_connect_with_enable_sets_enabled_flag(monkeypatch):
+    from django.contrib import messages
+
+    from interpretation.susi import SusiLoginResult
+
+    monkeypatch.setattr(messages, "success", lambda *a, **k: None)
+    monkeypatch.setattr(messages, "error", lambda *a, **k: None)
+
+    def fake_login(self, email, password):
+        return SusiLoginResult(token="jwt", email=email, name="Bot")
+
+    monkeypatch.setattr("interpretation.forms.SusiClient.login", fake_login)
+    form = _form(
+        {
+            SETTING_BASE_URL: PUBLIC_URL,
+            "susi_connect_email": "bot@example.com",
+            "susi_connect_password": "secret",
+            SETTING_IS_ENABLED: True,
+            CONNECT_POST_KEY: "1",
+        }
+    )
+    assert form.is_valid(), form.errors
+    form.save_pending_connect()
+    form.run_connect_action(request=type("R", (), {})())
+    assert form.obj.settings.get(SETTING_IS_ENABLED, as_type=bool) is True
 
 
 def test_save_does_not_persist_connect_credentials():

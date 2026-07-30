@@ -79,8 +79,7 @@ class InterpretationDashboard(
             return redirect(self.get_success_url())
         if CONNECT_POST_KEY in request.POST:
             if form.is_valid():
-                if form.has_changed():
-                    form.save()
+                form.save_pending_connect()
                 form.run_connect_action(request)
             else:
                 return self.form_invalid(form)
