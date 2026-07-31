@@ -23,7 +23,6 @@ TEST_POST_KEY = "interpretation_test_connection"
 class InterpretationSettingsForm(SettingsForm):
     """Commons dashboard form: connect to SUSI with email/password."""
 
-    template = "interpretation/susi_connection_form.html"
     connect_action_post_key = CONNECT_POST_KEY
     disconnect_action_post_key = DISCONNECT_POST_KEY
     test_action_post_key = TEST_POST_KEY
