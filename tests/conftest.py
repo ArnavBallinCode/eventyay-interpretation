@@ -86,7 +86,7 @@ def dashboard_url(event):
 @pytest.fixture
 def connection_payload():
     return {
-        "base_url": "https://susi.example.com",
-        "auth_token": "jwt-test-token",
-        "is_enabled": "on",
+        "interpretation_base_url": "https://susi.example.com",
+        "interpretation_auth_token": "jwt-test-token",
+        "interpretation_is_enabled": "on",
     }
