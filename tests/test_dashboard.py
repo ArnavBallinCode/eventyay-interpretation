@@ -4,6 +4,7 @@ import pytest
 from django.contrib.messages import get_messages
 from django.test import override_settings
 
+from interpretation.forms import TEST_POST_KEY
 from interpretation.settings import (
     get_auth_token,
     get_base_url,
@@ -16,16 +17,16 @@ pytestmark = pytest.mark.django_db
 
 @override_settings(SITE_URL="https://testserver")
 def test_save_persists_connection(
-    organizer_client, event, dashboard_url, connection_payload
+    organizer_client, connected_event, dashboard_url, connection_payload
 ):
     response = organizer_client.post(dashboard_url, connection_payload)
 
     assert response.status_code == 302
-    event.refresh_from_db()
-    event.settings.flush()
-    assert get_base_url(event) == "https://susi.example.com"
-    assert get_auth_token(event) == "jwt-test-token"
-    assert is_interpretation_enabled(event) is True
+    connected_event.refresh_from_db()
+    connected_event.settings.flush()
+    assert get_base_url(connected_event) == "https://susi.example.com"
+    assert get_auth_token(connected_event) == "jwt-test-token"
+    assert is_interpretation_enabled(connected_event) is True
 
     messages = [str(message) for message in get_messages(response.wsgi_request)]
     assert any("saved" in message.lower() for message in messages)
@@ -33,7 +34,7 @@ def test_save_persists_connection(
 
 @override_settings(SITE_URL="https://testserver")
 def test_save_and_test_calls_verify_with_saved_token(
-    monkeypatch, organizer_client, event, dashboard_url, connection_payload
+    monkeypatch, organizer_client, connected_event, dashboard_url, connection_payload
 ):
     calls = []
 
@@ -49,9 +50,9 @@ def test_save_and_test_calls_verify_with_saved_token(
                 message="Connected and authenticated.",
             )
 
-    monkeypatch.setattr("interpretation.views.SusiClient", FakeSusiClient)
+    monkeypatch.setattr("interpretation.forms.SusiClient", FakeSusiClient)
 
-    payload = {**connection_payload, "test": "1"}
+    payload = {**connection_payload, TEST_POST_KEY: "1"}
     response = organizer_client.post(dashboard_url, payload)
 
     assert response.status_code == 302
@@ -63,7 +64,7 @@ def test_save_and_test_calls_verify_with_saved_token(
 
 @override_settings(SITE_URL="https://testserver")
 def test_save_and_test_warns_when_verify_rejects_token(
-    monkeypatch, organizer_client, event, dashboard_url, connection_payload
+    monkeypatch, organizer_client, connected_event, dashboard_url, connection_payload
 ):
     class FakeSusiClient:
         def __init__(self, base_url, auth_token="", timeout=10):
@@ -78,15 +79,15 @@ def test_save_and_test_warns_when_verify_rejects_token(
                 message="Server reachable but token is invalid or expired.",
             )
 
-    monkeypatch.setattr("interpretation.views.SusiClient", FakeSusiClient)
+    monkeypatch.setattr("interpretation.forms.SusiClient", FakeSusiClient)
 
-    payload = {**connection_payload, "test": "1"}
+    payload = {**connection_payload, TEST_POST_KEY: "1"}
     response = organizer_client.post(dashboard_url, payload)
 
     assert response.status_code == 302
-    event.refresh_from_db()
-    event.settings.flush()
-    assert get_auth_token(event) == "jwt-test-token"
+    connected_event.refresh_from_db()
+    connected_event.settings.flush()
+    assert get_auth_token(connected_event) == "jwt-test-token"
 
     messages = [str(message) for message in get_messages(response.wsgi_request)]
     assert any("connection issue" in message.lower() for message in messages)
@@ -94,8 +95,8 @@ def test_save_and_test_warns_when_verify_rejects_token(
 
 
 @override_settings(SITE_URL="https://testserver")
-def test_save_and_test_without_url_shows_error(
-    monkeypatch, organizer_client, event, dashboard_url
+def test_test_connection_without_url_shows_error(
+    monkeypatch, organizer_client, connected_event, dashboard_url
 ):
     calls = []
 
@@ -103,9 +104,9 @@ def test_save_and_test_without_url_shows_error(
         def __init__(self, *args, **kwargs):
             calls.append(True)
 
-    monkeypatch.setattr("interpretation.views.SusiClient", FakeSusiClient)
+    monkeypatch.setattr("interpretation.forms.SusiClient", FakeSusiClient)
 
-    response = organizer_client.post(dashboard_url, {"test": "1"})
+    response = organizer_client.post(dashboard_url, {TEST_POST_KEY: "1"})
 
     assert response.status_code == 302
     assert calls == []

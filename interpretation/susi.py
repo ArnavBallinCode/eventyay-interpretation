@@ -1,3 +1,19 @@
+"""Thin HTTP client for the SUSI Translator Flask API.
+
+The SUSI server is a separate Flask service (fossasia/susi_translator). It uses
+JWT auth (flask-jwt-extended) with tokens accepted in either cookies or the
+``Authorization`` header. This client always authenticates via the header with a
+Bearer token to avoid cookie CSRF handling.
+
+Relevant SUSI endpoints used here:
+    GET  /auth/api/status     -> {"authenticated": bool, "email", "name"}
+    POST /auth/api/login      -> sets JWT cookie, body {status,email,name}
+    POST /session             -> {"tenant_id", "source"}
+    POST /api/v1/translate/configure
+    GET  /api/v1/translate/status/<tenant_id>
+    POST /stop_event/<tenant_id>
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -20,6 +36,13 @@ class SusiResult:
     message: str = ""
 
 
+@dataclass
+class SusiLoginResult:
+    token: str
+    email: str
+    name: str
+
+
 class SusiClient:
     """Minimal client for talking to a SUSI Translator server."""
 
@@ -33,7 +56,7 @@ class SusiClient:
         self.auth_token = auth_token or ""
         self.timeout = timeout
 
-    # internals
+    # -- internals -------------------------------------------------------
 
     def _url(self, path: str) -> str:
         return urljoin(self.base_url, path.lstrip("/"))
@@ -63,10 +86,14 @@ class SusiClient:
             data=data if isinstance(data, dict) else {"result": data},
         )
 
-    # auth / health
+    # -- auth / health ---------------------------------------------------
 
     def verify(self) -> SusiResult:
-        """Check reachability and token validity via ``/auth/api/status``."""
+        """Check reachability and token validity via ``/auth/api/status``.
+
+        Returns a :class:`SusiResult` with ``ok=True`` only when the server is
+        reachable AND the configured token authenticates successfully.
+        """
         result = self._request("GET", "/auth/api/status")
         if result.status_code is None or result.status_code >= 500:
             result.ok = False
@@ -85,8 +112,12 @@ class SusiClient:
             result.message = "Server reachable but token is invalid or expired."
         return result
 
-    def login(self, email: str, password: str) -> str:
-        """Authenticate with email/password and return the JWT access token."""
+    def login(self, email: str, password: str) -> SusiLoginResult:
+        """Authenticate with email/password and return the JWT access token.
+
+        SUSI sets the token as the ``access_token_cookie``; we read it from the
+        response cookies so it can be stored and reused as a Bearer token.
+        """
         url = self._url("/auth/api/login")
         try:
             resp = requests.post(
@@ -100,13 +131,24 @@ class SusiClient:
         if not resp.ok:
             raise SusiError("Invalid SUSI credentials or server rejected login.")
 
+        try:
+            data = resp.json() if resp.content else {}
+        except ValueError:
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+
         token = resp.cookies.get("access_token_cookie")
         if not token:
             raise SusiError("Login succeeded but no access token was returned.")
         self.auth_token = token
-        return token
+        return SusiLoginResult(
+            token=token,
+            email=(data.get("email") or email).strip(),
+            name=(data.get("name") or "").strip(),
+        )
 
-    # session lifecycle (used by later milestones)
+    # -- session lifecycle (used by later milestones) -------------------
 
     def create_session(self, source: str = "url") -> str:
         """Mint a tenant/session ID for a given audio source."""
