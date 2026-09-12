@@ -159,8 +159,9 @@ def create_voxbento_event(event: Event) -> None:
         resp.raise_for_status()
     except requests.RequestException as e:
         logger.error("Failed to provision VoxBento event %s: %s", event.id, e)
-        grant.event_provisioning_failed = True
-        grant.save(update_fields=["event_provisioning_failed"])
+        if resp.status_code < 500 and resp.status_code not in (408, 429):
+            grant.event_provisioning_failed = True
+            grant.save(update_fields=["event_provisioning_failed"])
         raise
 
     grant.event_provisioned = True
@@ -226,6 +227,16 @@ def sync_voxbento_room(event: Event, room_id: int, payload: dict) -> dict:
     }
 
     resp = requests.put(api_url, headers=headers, json=payload, timeout=5.0)
+
+    if resp.status_code == 404:
+        logger.warning(
+            "VoxBento returned 404 Not Found for room sync on event %s. "
+            "It may have been deleted. Attempting re-provision.",
+            event.id,
+        )
+        create_voxbento_event(event)
+        # Retry the request
+        resp = requests.put(api_url, headers=headers, json=payload, timeout=5.0)
 
     if resp.status_code == 409:
         logger.error("VoxBento returned 409 Conflict for room sync on event %s room %s", event.id, room_id)

@@ -168,6 +168,10 @@ def room_pre_save(sender, instance, **kwargs):
 
     from interpretation.backends.voxbento_oauth import VoxbentoReauthorizationRequired
 
+    if not instance.pk:
+        # Handled in post_save
+        return
+
     needs_retry = False
     try:
         needs_retry = _do_sync_single_room_to_voxbento(
@@ -186,6 +190,18 @@ def room_pre_save(sender, instance, **kwargs):
 
     if needs_retry:
         transaction.on_commit(lambda: sync_single_room_to_voxbento.delay(instance.id, instance.event_id, "upsert"))
+
+
+@receiver(post_save, sender=Room, dispatch_uid="interpretation_room_post_save")
+def room_post_save(sender, instance, created, **kwargs):
+    if not created:
+        return
+    if PLUGIN_MODULE not in instance.event.get_plugins():
+        return
+    if not is_interpretation_enabled(instance.event):
+        return
+
+    transaction.on_commit(lambda: sync_single_room_to_voxbento.delay(instance.id, instance.event_id, "upsert"))
 
 
 @receiver(post_delete, sender=Room, dispatch_uid="interpretation_room_post_delete")

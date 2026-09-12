@@ -174,9 +174,11 @@ class VoxbentoOAuthCallbackView(LoginRequiredMixin, View):
                     "is_disconnected": False,
                 },
             )
+            from django.db import transaction
+
             from .tasks import sync_voxbento_connection
 
-            sync_voxbento_connection.delay(event.id)
+            transaction.on_commit(lambda: sync_voxbento_connection.delay(event.id))
 
             messages.success(request, _("Successfully connected to VoxBento!"))
         except Exception as e:

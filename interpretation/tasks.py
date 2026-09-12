@@ -25,7 +25,7 @@ def sync_voxbento_connection(self, event_id: int) -> None:
     Background task to sync the VoxBento OAuth connection.
     """
     try:
-        event = Event.objects.get(id=event_id)
+        event = Event._base_manager.get(pk=event_id)
         grant = getattr(event, "voxbento_oauth_grant", None)
         if not grant:
             return
@@ -75,7 +75,7 @@ def sync_voxbento_connection(self, event_id: int) -> None:
 @shared_task(bind=True, max_retries=5, retry_backoff=True)
 def sync_all_rooms_to_voxbento(self, event_id: int) -> None:
     try:
-        event = Event.objects.get(id=event_id)
+        event = Event._base_manager.get(pk=event_id)
         grant = getattr(event, "voxbento_oauth_grant", None)
         if not grant or grant.event_provisioning_failed:
             return
@@ -110,7 +110,7 @@ def _do_sync_single_room_to_voxbento(
     room_id: int, event_id: int, action: str, room_instance=None, old_module_config=None
 ) -> bool:
     try:
-        event = Event.objects.get(id=event_id)
+        event = Event._base_manager.get(pk=event_id)
         grant = getattr(event, "voxbento_oauth_grant", None)
         if (
             not grant
@@ -148,8 +148,9 @@ def _do_sync_single_room_to_voxbento(
             else:
                 new_lang_set = set()
         else:
-            # Do not hijack normal Eventyay language streams
-            new_lang_set = set()
+            # When not using plugin streams, we pull the target languages from the Eventyay room config
+            # so VoxBento creates the necessary WHEP endpoint booths for them.
+            new_lang_set = _extract_langs_from_module_config(room.module_config)
 
         payload["target_languages"] = list(new_lang_set)
 
@@ -194,18 +195,22 @@ def _do_sync_single_room_to_voxbento(
         if response_data and "booths" in response_data:
             base_url = get_voxbento_base_url(event).rstrip("/")
             returned_urls = {}
-            for b in response_data["booths"]:
-                if b.get("type") != "human":
-                    continue
-                whep_url = b.get("whep_url")
-                if not whep_url:
-                    whip_path = b.get("whip_path")
-                    if whip_path:
-                        whep_url = f"{base_url}/{whip_path}/whep"
-                if whep_url:
-                    lang_key = b.get("language") or b.get("language_code")
-                    if lang_key:
-                        returned_urls[lang_key] = whep_url
+            booths_data = response_data["booths"]
+            if isinstance(booths_data, dict):
+                returned_urls = booths_data
+            elif isinstance(booths_data, list):
+                for b in booths_data:
+                    # Note: Voxbento API does not include a 'type' field on booth objects;
+                    # all booths in this response are human interpreter booths.
+                    whep_url = b.get("whep_url")
+                    if not whep_url:
+                        whip_path = b.get("whip_path")
+                        if whip_path:
+                            whep_url = f"{base_url}/{whip_path}/whep"
+                    if whep_url:
+                        lang_key = b.get("language") or b.get("language_code")
+                        if lang_key:
+                            returned_urls[lang_key] = whep_url
 
             if not room_instance:
                 room.refresh_from_db()
@@ -287,7 +292,7 @@ def sync_single_room_to_voxbento(self, room_id: int, event_id: int, action: str)
         except MaxRetriesExceededError:
             logger.error(f"Max retries exceeded syncing room {room_id}")
             try:
-                event = Event.objects.get(id=event_id)
+                event = Event._base_manager.get(pk=event_id)
                 if hasattr(event, "voxbento_oauth_grant"):
                     grant = event.voxbento_oauth_grant
                     grant.room_sync_failed = True
