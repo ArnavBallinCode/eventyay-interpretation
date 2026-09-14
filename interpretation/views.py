@@ -320,10 +320,9 @@ class InterpretationRoomSettings(
             if isinstance(error, str):
                 messages.error(request, error)
             else:
-                messages.error(
-                    request,
-                    _("Could not save room settings. See below for details."),
-                )
+                for field, field_errors in error.errors.items():
+                    for err in field_errors:
+                        messages.error(request, err)
             return redirect(redirect_url)
         if (
             interpretation

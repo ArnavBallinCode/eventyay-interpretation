@@ -30,6 +30,10 @@ def test_voxbento_backend_is_registered():
 
 
 def test_voxbento_credentials_facade(empty_event):
+    from eventyay.base.settings import GlobalSettingsObject
+
+    GlobalSettingsObject().settings.delete("voxbento_base_url")
+
     assert not is_voxbento_configured(empty_event)
 
     save_voxbento_credentials(empty_event, "https://voxbento.test", "vb_12345")

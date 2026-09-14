@@ -151,6 +151,7 @@ class RoomConfigureForm(forms.Form):
 
     def __init__(self, *args, event=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.event = event
         from .backends import list_available_interpreters
 
         interpreters = list_available_interpreters(event)
@@ -158,6 +159,34 @@ class RoomConfigureForm(forms.Form):
         for name, field in self.fields.items():
             if name != "room_enabled":
                 field.widget.attrs.setdefault("class", "form-control")
+
+    def clean(self):
+        cleaned_data = super().clean()
+        interpreter = cleaned_data.get("interpreter")
+        room_enabled = cleaned_data.get("room_enabled", False)
+        if interpreter == "voxbento" and room_enabled:
+            from .backends.voxbento_credentials import get_voxbento_base_url
+
+            try:
+                base_url = get_voxbento_base_url(self.event)
+            except Exception:
+                base_url = None
+
+            from .models import VoxbentoOAuthGrant
+
+            grant = VoxbentoOAuthGrant.objects.filter(event=self.event).first()
+            has_active_grant = (
+                grant and not getattr(grant, "is_disconnected", False) and bool(getattr(grant, "access_token", ""))
+            )
+
+            if not (base_url and has_active_grant):
+                interpreter_label = dict(self.fields["interpreter"].choices).get(interpreter, interpreter)
+                self.add_error(
+                    "interpreter",
+                    _("Please connect to %(service)s before configuring this room.") % {"service": interpreter_label},
+                )
+
+        return cleaned_data
 
 
 class InterpretationSettingsForm(SettingsForm):

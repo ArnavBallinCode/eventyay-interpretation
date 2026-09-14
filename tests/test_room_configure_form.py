@@ -32,9 +32,16 @@ def test_room_configure_form_lists_interpreters():
     assert RoomInterpretation.INTERPRETER_SUSI not in ids
 
 
-def test_room_configure_form_accepts_interpreter_and_enabled():
+def test_room_configure_form_accepts_interpreter_and_enabled(event):
+    from interpretation.models import VoxbentoOAuthGrant
+
+    event.plugins = "interpretation"
+    event.save(update_fields=["plugins"])
+    event.settings.set("interpretation_voxbento_base_url", "https://v.example")
+    VoxbentoOAuthGrant.objects.create(event=event, access_token="t", is_disconnected=False)
+
     form = RoomConfigureForm(
-        event=_FakeEvent(),
+        event=event,
         data={
             "interpreter": RoomInterpretation.INTERPRETER_VOXBENTO,
             "room_enabled": True,
