@@ -42,8 +42,24 @@ class VoxbentoWebhookReceiverView(View):
         except json.JSONDecodeError:
             return JsonResponse({"detail": "Invalid JSON body"}, status=400)
 
-        event_slug = payload.get("event_slug")
+        if not isinstance(payload, dict):
+            return JsonResponse({"detail": "Payload must be a JSON object"}, status=400)
+
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            data = {}
+
+        event_slug = payload.get("event_slug") or data.get("event_slug")
+
         if not event_slug:
+            booth_id = data.get("booth_id", "")
+            if isinstance(booth_id, str):
+                parts = booth_id.rsplit("-", 2)
+                if len(parts) == 3:
+                    event_slug = parts[0]
+
+        if not event_slug:
+            logger.error("Webhook payload missing event_slug. Event identification failed.")
             return JsonResponse({"detail": "Missing event_slug in payload"}, status=400)
 
         try:
